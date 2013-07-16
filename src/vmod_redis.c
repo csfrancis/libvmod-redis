@@ -165,13 +165,12 @@ vmod_call(struct sess *sp, struct vmod_priv *priv, const char *command)
 
 	switch (reply->type) {
 	case REDIS_REPLY_STATUS:
-		ret = strdup(reply->str);
-		break;
 	case REDIS_REPLY_ERROR:
-		ret = strdup(reply->str);
+	case REDIS_REPLY_STRING:
+		ret = (sp != NULL) ? WS_Dup(sp->ws, reply->str) : strdup(reply->str);
 		break;
 	case REDIS_REPLY_INTEGER:
-		digits = malloc(21); /* sizeof(long long) == 8; 20 digits + NUL */
+		digits = (sp != NULL) ? WS_Alloc(sp->ws, 21) : malloc(21); /* sizeof(long long) == 8; 20 digits + NUL */
 		if(digits)
 			sprintf(digits, "%lld", reply->integer);
 		ret = digits;
@@ -179,14 +178,11 @@ vmod_call(struct sess *sp, struct vmod_priv *priv, const char *command)
 	case REDIS_REPLY_NIL:
 		ret = NULL;
 		break;
-	case REDIS_REPLY_STRING:
-		ret = strdup(reply->str);
-		break;
 	case REDIS_REPLY_ARRAY:
-		ret = strdup("array");
+		ret = "array";
 		break;
 	default:
-		ret = strdup("unexpected");
+		ret = "unexpected";
 	}
 
 done:
