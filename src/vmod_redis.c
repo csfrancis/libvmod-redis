@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <stdarg.h>
 
 #include "vrt.h"
 #include "bin/varnishd/cache.h"
@@ -106,7 +107,7 @@ vmod_init_redis(struct sess *sp, struct vmod_priv *priv, const char *host, int p
 }
 
 static redisReply *
-redis_common(struct sess *sp, struct vmod_priv *priv, const char *command)
+redis_common(struct sess *sp, struct vmod_priv *priv, const char *command, va_list ap)
 {
 	config_t *cfg = priv->priv;
 	redisContext *c;
@@ -122,7 +123,7 @@ redis_common(struct sess *sp, struct vmod_priv *priv, const char *command)
 		(void)pthread_setspecific(redis_key, c);
 	}
 
-	reply = redisCommand(c, command);
+	reply = redisvCommand(c, command, ap);
 	if (reply == NULL && c->err == REDIS_ERR_EOF) {
 		c = redisConnectWithTimeout(cfg->host, cfg->port, cfg->timeout);
 		if (c->err) {
@@ -132,7 +133,7 @@ redis_common(struct sess *sp, struct vmod_priv *priv, const char *command)
 			redisFree(pthread_getspecific(redis_key));
 			(void)pthread_setspecific(redis_key, c);
 
-			reply = redisCommand(c, command);
+			reply = redisvCommand(c, command, ap);
 		}
 	}
 	if (reply == NULL) {
@@ -145,20 +146,24 @@ redis_common(struct sess *sp, struct vmod_priv *priv, const char *command)
 void
 vmod_send(struct sess *sp, struct vmod_priv *priv, const char *command)
 {
-	redisReply *reply = redis_common(sp, priv, command);
+	va_list ap = { 0 };
+	redisReply *reply = redis_common(sp, priv, command, ap);
 	if (reply != NULL) {
 		freeReplyObject(reply);
 	}
 }
 
 const char *
-vmod_call(struct sess *sp, struct vmod_priv *priv, const char *command)
+vmod_callv(struct sess *sp, struct vmod_priv *priv, const char *command, ...)
 {
+	va_list ap;
 	redisReply *reply = NULL;
 	const char *ret = NULL;
 	char *digits;
 
-	reply = redis_common(sp, priv, command);
+	va_start(ap, command);
+	reply = redis_common(sp, priv, command, ap);
+	va_end(ap);
 	if (reply == NULL) {
 		goto done;
 	}
@@ -191,4 +196,10 @@ done:
 	}
 	
 	return ret;
+}
+
+const char *
+vmod_call(struct sess *sp, struct vmod_priv *priv, const char *command)
+{
+	return vmod_callv(sp, priv, command);
 }
