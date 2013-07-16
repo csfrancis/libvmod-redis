@@ -15,5 +15,6 @@ src/.libs/
 *.o
 *.la
 *.lo
+*.swp
 src/vcc_if.*
 stamp-h1
